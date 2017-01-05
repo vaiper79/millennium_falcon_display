@@ -1,3 +1,12 @@
+// Code put together by Ole Andre (ole@olendre.net), mode details to be found at https://oleandre.net
+// Code snippets used: 
+// - Adafruit: https://github.com/adafruit/Adafruit_DotStar
+// - Adafruit: https://learn.adafruit.com/multi-tasking-the-arduino-part-1/overview
+// - Technobly: https://github.com/technobly/Particle-DotStar
+//
+// Code is Work In Progress, and by no means finished
+
+
 // Includes
 #include "application.h"
 #include "dotstar/dotstar.h"
