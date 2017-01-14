@@ -58,6 +58,11 @@ Adafruit_DotStar dotStrip = Adafruit_DotStar(NUMPIXELS, DATAPIN, CLOCKPIN, DOTST
 SYSTEM_MODE(AUTOMATIC);
 
 void setup(){
+
+    //pinMode(DATAPIN, OUTPUT);               // These three, while untested, might be the solution to running both dotstar and neopixels in the same circuit
+    //pinMode(CLOCKPIN, OUTPUT);              // and might also explain why I was having such erratic behavior with the dotstar. 
+    //pinMode(neopixel_pin);                // I have rebuilt the circuit using neopixels and will not have a chance to test this right away
+
     Serial.begin(9600);                     // Start serial interface, in case we need some output for debuggig.
     Particle.function("falcon", falcon);   // The cloud exposed function
     pinMode(audioPin00, OUTPUT);            // Pins defined as outputs
