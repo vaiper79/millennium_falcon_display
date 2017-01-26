@@ -1,20 +1,23 @@
 SYSTEM_MODE(SEMI_AUTOMATIC);    // Ok, so semi_automatic allows things to start up, THEN connect to the internet. Automatic did it the other way around. 
 
 // Audio Triggers
-#define audioPin00  D0   // Left Right Left Right // Will become empty wave file for reset purposes..
-#define audioPin01  D1   // Some random Falcon sound // Will become a "ready" sound, i.e. "Chewey, we're home!"
-#define audioPin02  D2   // Short takeoff
+#define audioPin00  D6   // Left Right Left Right // Will become empty wave file for reset purposes..
+#define audioPin01  D5   // Some random Falcon sound // Will become a "ready" sound, i.e. "Chewey, we're home!"
+#define audioPin02  D4   // Short takeoff
 #define audioPin03  D3   //
-#define audioPin04  D4   //
-#define audioPin05  D5   //
-#define audioPin06  D6   //
-#define audioPin07  D7   //
-#define audioPin08  A0   //
+#define audioPin04  D2   //
+#define audioPin05  D1   //
+#define audioPin06  D0   //
+#define audioPin07  D3   //
+#define audioPin08  A2   //
 #define audioPin09  A1   //
-#define audioPin10  A2   //
+#define audioPin10  A0   //
+
+// Relay
+#define relPinNeg WKP
 
 // Audio Reset
-#define audioRst    A5  // To give me the possibilty to reset the board as it tends to get "weird"
+#define audioRst    D7  // To give me the possibilty to reset the board as it tends to get "weird"
 
 int wait = 1000;
 
@@ -43,10 +46,27 @@ void setup() {
     digitalWrite(audioPin09, HIGH);
     pinMode(audioPin10, OUTPUT);
     digitalWrite(audioPin10, HIGH);
-
+    
+    pinMode(audioRst, OUTPUT);
+    digitalWrite(audioRst, HIGH);
+    
+    pinMode(relPinNeg, OUTPUT);
+    digitalWrite(relPinNeg, LOW);
 }
 
 int falcon(String cmd) {
+    if (cmd == "on"){
+        digitalWrite(relPinNeg, LOW);
+    }
+    if (cmd == "off"){
+
+        digitalWrite(relPinNeg, HIGH);
+    }
+    if (cmd == "00") {       
+        digitalWrite(audioPin00, LOW);
+        delay(wait);
+        digitalWrite(audioPin00, HIGH);
+    } 
     if (cmd == "01") {       
         digitalWrite(audioPin01, LOW);
         delay(wait);
