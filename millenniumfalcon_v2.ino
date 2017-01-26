@@ -110,7 +110,6 @@ int falcon(String cmd) {
     if (cmd == "off") {         // All Stop..mostly meant for use during development
         resetAudio();           // Stop sound
         relay("off");           // Stop power to amp
-        setAudioPinsHigh();     // Set audiopins back to high to be sure 
         lightsOff();            // Lights out!
         looper = 0;
     }    
@@ -124,12 +123,10 @@ int falcon(String cmd) {
     }
     if (cmd == "takeOff"){      // One of the special sequences requiring timing to work as indended
         relay("on");
-        resetter();
         looper = 3;
         sequenceStart = millis();
     }
     if (cmd == "hyperdrive"){   // One of the special sequences requiring timing to work as indended 
-        resetter();
         looper = 4;
     }
     if (cmd == "up"){           // Volume UP by 5
@@ -139,7 +136,7 @@ int falcon(String cmd) {
         volumeD(5);
     }
     if (cmd == "annoying"){     // Silly test sequence..for development only 
-        resetter();
+        relay("on");
         looper = 5;
         sequenceStart = millis();
     }
@@ -254,26 +251,6 @@ void lightsOff(){                               // Function to clear the lights.
     pixels.show();                        // Turn all LEDs off ASAP, this does not allways work for some reason
 
 
-}
-
-void resetter(){                                // Mostly used now for development to have a way to kill all..
-    lightsOff();                                // Off with all lights
-    resetAudio();
-    setAudioPinsHigh();                         // Off with all sound
-}
-
-void setAudioPinsHigh(){                        // Just a function to reset the pins.. Might remove this in final.
-    digitalWrite(audioPin00, HIGH);             
-    digitalWrite(audioPin01, HIGH);
-    digitalWrite(audioPin02, HIGH);
-    digitalWrite(audioPin03, HIGH);
-    digitalWrite(audioPin04, HIGH);
-    digitalWrite(audioPin05, HIGH);
-    digitalWrite(audioPin06, HIGH);
-    digitalWrite(audioPin07, HIGH);
-    digitalWrite(audioPin08, HIGH);
-    digitalWrite(audioPin09, HIGH);
-    digitalWrite(audioPin10, HIGH);
 }
 
 void relay(String cmd){                 // The relay that controls the power to the amp takes a string command, on or off
