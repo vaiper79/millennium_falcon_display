@@ -14,7 +14,7 @@ SYSTEM_MODE(SEMI_AUTOMATIC);    // Ok, so semi_automatic allows things to start 
 #define audioPin10  A0   //
 
 // Relay
-#define relPinNeg WKP
+#define relPin WKP
 
 // Audio Reset
 #define audioRst    D7  // To give me the possibilty to reset the board as it tends to get "weird"
@@ -50,19 +50,18 @@ void setup() {
     pinMode(audioRst, OUTPUT);
     digitalWrite(audioRst, HIGH);
     
-    pinMode(relPinNeg, OUTPUT);
-    digitalWrite(relPinNeg, LOW);
+    pinMode(relPin, OUTPUT);
+    digitalWrite(relPin, LOW);
 }
 
 int falcon(String cmd) {
     if (cmd == "on"){
-        digitalWrite(relPinNeg, LOW);
+        relay("on");
     }
     if (cmd == "off"){
-
-        digitalWrite(relPinNeg, HIGH);
+        relay("off");
     }
-    if (cmd == "00") {       
+    if (cmd == "00") { 
         digitalWrite(audioPin00, LOW);
         delay(wait);
         digitalWrite(audioPin00, HIGH);
@@ -126,6 +125,14 @@ return 1;   // Returns 1 so we know all went well..
 
 void loop() {
    connect();   // If Photon was just powered up, then connect() to the internet. 
+}
+
+void relay(String cmd){                 // The relay that controls the power to the amp takes a string command, on or off
+    if (cmd == "off"){                   // Reason for this is to remove static hum when displaying only lights
+        digitalWrite(relPin, LOW);
+    }else if(cmd == "on"){
+        digitalWrite(relPin, HIGH);
+    }
 }
 
 void rstAudio(){                    // Reset function for the audio fx board
