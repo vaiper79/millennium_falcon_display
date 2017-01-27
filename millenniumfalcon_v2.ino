@@ -42,6 +42,7 @@ SYSTEM_MODE(AUTOMATIC);
 // Define the Neopixel strip
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(numPix, pixelPin, pixType);
 
+String prevCmd;                 // Right..gotta set the previously used pins low again..
 int looper = 999;               // So we don't enter any if statements in the void loop :)
 int audio = 0;                  // Used to set state so audio files are only triggered once
 int ledState = 1;
@@ -99,19 +100,19 @@ void setup(){
 }
 
 int falcon(String cmd) {
+    
     if (cmd == "relayOff"){
         relay("off");
     }
     if (cmd == "relayOn"){
         relay("on");
     }
-    
-    
     if (cmd == "off") {         // All Stop..mostly meant for use during development
+        looper = 0;
         resetAudio();           // Stop sound
         relay("off");           // Stop power to amp
         lightsOff();            // Lights out!
-        looper = 0;
+        pinFixer();
     }    
     if (cmd == "onBasic") {     // This will become the default when switched on. Enigne on, no sound.
         relay("off");             
@@ -122,6 +123,7 @@ int falcon(String cmd) {
         looper = 2;
     }
     if (cmd == "takeOff"){      // One of the special sequences requiring timing to work as indended
+        prevCmd = cmd;
         relay("on");
         looper = 3;
         sequenceStart = millis();
@@ -136,6 +138,7 @@ int falcon(String cmd) {
         volumeD(5);
     }
     if (cmd == "annoying"){     // Silly test sequence..for development only 
+        prevCmd = cmd;
         relay("on");
         looper = 5;
         sequenceStart = millis();
@@ -186,6 +189,11 @@ void flashybit(){
   }
 }
 
+void pinFixer(){ // Remember to add the pins here that are used for audio..
+    if (prevCmd == "takeOff") digitalWrite(audioPin02, HIGH);
+    if (prevCmd == "annoying") digitalWrite(audioPin00, HIGH); 
+}
+
 void onBasic(){
     colorEngine(0,0,255);           // The initial blue
 }
@@ -201,21 +209,21 @@ void takeOff (){                            // Very early attempt at a take off 
         audio = 1;                          // Set audio to 1 as the sound has been triggered..no need to do it again
     }
     if (audio == 1){                        // Since audio has started, we need to start the lights
-        if (currentMillis - sequenceStart <= 5610){     // The MF engine lights are darker blue for a bit, then as the engines "explode" to life, they turn a different color..the audio file is about 5610 ms in when this happens..
+        if (currentMillis - sequenceStart <= 5780){     // The MF engine lights are darker blue for a bit, then as the engines "explode" to life, they turn a different color..the audio file is about 5610 ms in when this happens..
             colorEngine(0,0,255);           // The initial blue
             pixels.show();                  // Send info to LEDs..
-        }else if((currentMillis - sequenceStart > 5610) && (currentMillis - sequenceStart < 10000)){
+        }else if((currentMillis - sequenceStart > 5780) && (currentMillis - sequenceStart < 10000)){
             colorEngine(67,67,255);         // After a set amount of time we need a different color as the engine lights should change
             pixels.setBrightness(100);    // Reduce brightness..not sure I need this in the end.
             pixels.show();                // Send info to LEDs.. 
-        } else {
+        } else if(currentMillis - sequenceStart > 10000){
             relay("off");
         }    
     }
 }
 
 void colorEngine(int r, int g, int b) {         // Function to color the engine portion of the strip
-    for(int i=0; i<2; i++) {                    // Set aside the first 5 pixels for the engine during testing, think this will be 17 in the end.. 
+    for(int i=0; i<4; i++) {                    // Set aside the first 5 pixels for the engine during testing, think this will be 17 in the end.. 
         pixels.setPixelColor(i, r, g, b);
     }
     pixels.show();                            // Send info to LEDs
