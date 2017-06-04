@@ -1,7 +1,6 @@
 /*
 Remaining items:
-Takeoff sequence
-Sound display
+Takeoff sequence, needs some planning in terms of what the engine should look like for the various sounds..
 */
 
 // Get this show started, we will use Neopixels in this version
@@ -55,6 +54,7 @@ int boot = 0;
 int cockpitLedState = 1;
 int currentButtonState;
 int previousButtonState = HIGH;
+int longPress = 0; 
 
 String cmd;
 String previousCmd;
@@ -123,6 +123,7 @@ int falcon(String cmd) {
         pinFixer("all");
         looper = 0;
         cmd = "0";
+        boot = 0;
     }
     if(cmd == "resetAudio"){ // Need a quick way to kill the thing when working at night if it suddenly plays at high volume.. 
         resetAudio();        
@@ -145,23 +146,17 @@ int falcon(String cmd) {
     if(cmd == "down"){
         volumeD(5);
     }
-    if (cmd == "1") { // WIP.. 
-        looper = 11;
-    }  
-    if (cmd == "2") { // Not operational...
-        looper = 12;
-    }    
-    if (cmd == "3") { // Not operational...
-        looper = 13;
-    }
     return 1;   // Returns 1 so we know all went well..cloud stuff 
 }                // WIP
 
 void loop(){                    // The loop that runs all the time.. looper = 0 reserved
     connect();
     
-    if (boot == 0){
-        Particle.publish("Admin:" ,"Booted, ready for duty");
+    
+    
+    if (boot == 0){                                             // Do these things only once, at boot
+        Particle.publish("Admin:" ,"Booted or reset, ready for duty");
+        volumeD(25);
         boot = 1;
     }
     
@@ -173,26 +168,12 @@ void loop(){                    // The loop that runs all the time.. looper = 0 
     if (looper == 2){ // intro
         soundDisplay("intro");
     }
-    
     if (looper == 3){ // medley
         soundDisplay("medley");
     }
-    if (looper == 4){ //11
-        playSound("1");
-    }
-    
-    if (looper == 5){ //12
-        playSound("2");
-    }
-    if (looper == 6){ //13
-        playSound("3");
-    }
-    /*
     if (looper == 4){ // take off
         takeOff();
     }
-    */
-    Particle.publish("Looper:", String(looper));
 }                            // WIP
 
 void playSound(String audioCmd){
@@ -239,24 +220,26 @@ void playSound(String audioCmd){
             previousAudioCmd = audioCmd;
         }
     }
-}             // Test function
+}        // Complete
 
 void stopAll(){
     lightsOff();                                    // Kill lights
     relay("off");                                   // Turn off power to the amplifier
     resetAudio();                                   // Reset the audio card to kill any playing audio..
     pinFixer("all");                                // Shut down the output pin on ctrlr towrards audiofx..not sure this works
-    looper = 0;
+    volumeD(25);                                    // TEMPORARY, working at night config
 }                         // Complete
 
 void button(){                                                  // Button press= LOW, LED lit = HIGH
     unsigned long currentMillis = millis();
+    
     currentButtonState = digitalRead(buttonPress);              // Check if button is pressed at this moment
+    
     if (currentButtonState == LOW) {                            // If the button IS pressed..then
         if (currentButtonState == previousButtonState){         // Check if it was pressed last time we checked..if it was, then
             if (currentMillis - pressedMillis >= interval) {    // Check if it has been pressed for the duration of "interval", if yes, then
-                stopAll();                                      // A bunch of things must happen to turn off, so I made a function for that purpose
-                exit;                                           // We do not want anything more happening..break out! Apparently "exit;" does nothing.. 
+                longPress = 1;                                  // Button has been pressed >= interval, this ensures we drop out gracefully of the button function
+                falcon("reset");                                // Why not use the cloud exposed function for something good, this resets everything back to nothing.
             }
         } else {                                                // If interval hasn't been reached then
             pressedMillis = millis();                           // When did we press the button..
@@ -264,12 +247,16 @@ void button(){                                                  // Button press=
             digitalWrite(buttonLED, HIGH);                      // Light the LED on the button :)
         }
     } else if (currentButtonState == HIGH){                     // The most common state, button NOT pressed..
-        if (currentButtonState != previousButtonState) {        // However, what if the button was pressed on the last run through? This checks to see if it has been released
-            stopAll();                                          // because if that is the case then we need to stop what we're doing and
-            looper = looper + 1;                                // Increase the looper variable to move to the next program in line
-            if (looper == 7) looper =0;                         // and make sure we loop looper around when we have nothing more to show off :)
+        if (previousButtonState == LOW) {                       // However, what if the button was pressed on the last run through? This checks to see if it has been released
+            if (longPress == 1){                                // and what if we pressed it a really really really long time?
+                longPress = 0;                                  // Well..we're not pressing it for a really really really long time any more.. 
+            }else{
+                stopAll();                                          // because if that is the case then we need to stop what we're doing and
+                looper = looper + 1;                              // Increase the looper variable to move to the next program in line
+                if (looper == 4) looper = 0;                       // and make sure we loop looper around when we have nothing more to show off :)
+            }
+            previousButtonState = currentButtonState;           // Record the button state for the next run around.. 
         }
-        previousButtonState = currentButtonState;               // Record the button state for the next run around..
         digitalWrite(buttonLED, LOW);                           // Turn of the button LED
     }
 }                          // Complete
@@ -360,7 +347,7 @@ void soundDisplay(String program){
     staticDisplay();
     if (program == "intro") playSound("intro");
     if (program == "medley") playSound("medley");
-}      // WIP
+}      // Complete
 
 void volumeU(int v){                    // Volume up function
     for(int y=0; y<v; y++) {            // Basically this sets the volume up pin low for 20 ms, then sets it high again
