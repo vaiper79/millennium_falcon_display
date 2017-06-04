@@ -9,7 +9,7 @@ SYSTEM_MODE(SEMI_AUTOMATIC);
 // Pin Definitions
 // Audio Triggers
 #define audioPin00  D6  // T00 full take off sound  125000 ms
-#define audioPin01  D5  // T01 intro                386000 ms
+#define audioPin01  D5  // T01 intro                386000 ms    
 #define audioPin02  D4  // T02 medley               527000 ms
 
 // LEDs
@@ -61,23 +61,25 @@ unsigned long cmdMillis;
 unsigned long startTime = 0;        // For timing lights and sound..need to be more specific..
 unsigned long sequenceStart;        // For timing lights and sound
 unsigned long currentMillis;
-unsigned long previousMillis = 0;
+unsigned long previousMillis = 0;        
 const long cockpitInterval = 500;
 const long engineInterval = 30;
 const long interval = 2000;
 
 // Tempt variables..testing etc
 int wait = 1000;
-
+unsigned long lastTime = 0UL;
+char publishString[40];
+String location,then,now;
 
 void setup(){
     Particle.function("falcon", falcon);    // The cloud exposed function
-
+    
     pinMode(pixelPin, OUTPUT);              // Defining the neopixel pin as output
-
+   
     pinMode(audioRst, OUTPUT);              // Defining the audio reset pin as output
-    digitalWrite(audioRst, HIGH);           // Setting it high so as to not trigger, yet.. :)
-
+    digitalWrite(audioRst, HIGH);           // Setting it high so as to not trigger, yet.. :) 
+   
     pinMode(audioPin00, OUTPUT);            // Pins defined as outputs
     digitalWrite(audioPin00, HIGH);         // The set high due to the nature of the audio board (gnd triggers sound)
     pinMode(audioPin01, OUTPUT);
@@ -86,19 +88,19 @@ void setup(){
     digitalWrite(audioPin02, HIGH);
 
     pinMode(volumeUp, OUTPUT);              // Volume pin defined as output
-    digitalWrite(volumeUp, HIGH);           // Again, the nature of the audio board requires "off" pins to be high.
+    digitalWrite(volumeUp, HIGH);           // Again, the nature of the audio board requires "off" pins to be high. 
     pinMode(volumeDown, OUTPUT);
     digitalWrite(volumeDown, HIGH);
-
+    
     pinMode(relPin, OUTPUT);                // LOW = relay is open and AMP has no power, HIGH = relay is closed and AMP has power
     digitalWrite(relPin, LOW);              // this is done to remove audio hum/hiss during non-audio display
-
+    
     pinMode(buttonLED, OUTPUT);             // Setting up the button output LED pin
-    pinMode(buttonPress, INPUT_PULLUP);     // Setting up the button switch input pin using PULLUP
-
+    pinMode(buttonPress, INPUT_PULLUP);     // Setting up the button switch input pin using PULLUP 
+    
     pixels.begin();                         // Initialize pins for output
     pixels.show();                          // Turn all LEDs off ASAP, this does not allways work for some reason
-
+    
     pinMode(buttonLED, OUTPUT);             // Setting up the button LED pin
 }
 
@@ -108,32 +110,32 @@ int falcon(String cmd) {
         looper = 1;
     }
     if(cmd == "takeOff"){
-
+        
     }
     if(cmd == "intro"){
-
+        
     }
     if(cmd == "medley"){
-
+        
     }
-
+    
     // Admin's "special" Commands
-    if(cmd == "reset"){ // Need a quick way to kill the thing when working at night if it suddenly plays at high volume..
-        lightsOff();
+    if(cmd == "reset"){ // Need a quick way to kill the thing when working at night if it suddenly plays at high volume.. 
+        lightsOff(); 
         relay("off");
         resetAudio();
         pinFixer("all");
         looper = 0;
         cmd = "0";
     }
-    if(cmd == "resetAudio"){ // Need a quick way to kill the thing when working at night if it suddenly plays at high volume..
-        resetAudio();
+    if(cmd == "resetAudio"){ // Need a quick way to kill the thing when working at night if it suddenly plays at high volume.. 
+        resetAudio();        
     }
-    if(cmd == "resetRelay"){ // Need a quick way to kill the thing when working at night if it suddenly plays at high volume..
-        relay("off");
+    if(cmd == "resetRelay"){ // Need a quick way to kill the thing when working at night if it suddenly plays at high volume.. 
+        relay("off");       
     }
-    if(cmd == "resetLights"){ // Need a quick way to kill the thing when working at night if it suddenly plays at high volume..
-        lightsOff();
+    if(cmd == "resetLights"){ // Need a quick way to kill the thing when working at night if it suddenly plays at high volume.. 
+        lightsOff();        
     }
     if(cmd == "relayOn"){
         relay("on");
@@ -147,26 +149,38 @@ int falcon(String cmd) {
     if(cmd == "down"){
         volumeD(5);
     }
-    if (cmd == "1") { // WIP..
+    if (cmd == "1") { // WIP.. 
         looper = 11;
-    }
+    }  
     if (cmd == "2") { // Not operational...
         looper = 12;
-    }
+    }    
     if (cmd == "3") { // Not operational...
         looper = 13;
     }
-    return 1;   // Returns 1 so we know all went well..cloud stuff
+    return 1;   // Returns 1 so we know all went well..cloud stuff 
 }
 
 void loop(){                    // The loop that runs all the time.. looper = 0 reserved
     connect();
-    Spark.publish("Uptime",looper);
-
+    
     currentMillis = millis();
-
+    
+    
+    //Every 15 seconds publish uptime, just for testing
+    if (currentMillis - previousMillis>15000UL) {
+        previousMillis = currentMillis;
+        // now is in milliseconds
+        unsigned currentSec = currentMillis/1000UL;
+        unsigned sec = currentSec%60;
+        unsigned min = (currentSec%3600)/60;
+        unsigned hours = (currentSec%86400)/3600;
+        sprintf(publishString,"%u:%u:%u",hours,min,sec);
+        //Spark.publish("Uptime",publishString);
+    }
+    
     button(); // Check the button on the base; short press = switch program, long press = turn off sound/lights
-
+    
     if (looper == 1){ //static display
         staticDisplay();
     }
@@ -178,53 +192,60 @@ void loop(){                    // The loop that runs all the time.. looper = 0 
     if (looper == 3){ // intro
         soundDisplay("intro");
     }
-
+    
     if (looper == 4){ // medley
         soundDisplay("medley");
     }
-
+    
     if (looper == 11){
         playSound("1");
     }
-
-
+    
+    
 }
 
 void playSound(String cmd){
     if (cmd == "1") {
-
         relay("on");
-
-        digitalWrite(audioPin00, LOW);
-
+        pinResetFast(audioPin00);
         if (cmd == previousCmd){
-            if (currentMillis - cmdMillis >= 25000) { // Let audio play until finished, then shut down the relay..
-                digitalWrite(audioPin00, HIGH);
+            if (currentMillis - cmdMillis >= 125000) { // 125000 Let audio play until finished, then shut down the relay..
+                pinSetFast(audioPin00);
                 relay("off");
-                previousCmd = "";
-                pinFixer(cmd);          // Shut down the output pin on ctrlr towrards audiofx..
+                pinFixer(cmd);          // Shut down the output pin on ctrlr towrards audiofx.. 
             }
         } else {
-            volumeD(25);
             cmdMillis = millis();
             previousCmd = cmd;
         }
-
-
-    }
-    if (cmd == "2") {
+    } 
+    if (cmd == "2") { 
         relay("on");
-        digitalWrite(audioPin01, LOW);
-        delay(wait);
-        digitalWrite(audioPin01, HIGH);
-        relay("off");
-    }
+        pinResetFast(audioPin01);
+        if (cmd == previousCmd){
+            if (currentMillis - cmdMillis >= 386000) { // 125000 Let audio play until finished, then shut down the relay..
+                pinSetFast(audioPin01);
+                relay("off");
+                pinFixer(cmd);          // Shut down the output pin on ctrlr towrards audiofx.. 
+            }
+        } else {
+            cmdMillis = millis();
+            previousCmd = cmd;
+        }
+    }    
     if (cmd == "3") {
         relay("on");
-        digitalWrite(audioPin02, LOW);
-        delay(wait);
-        digitalWrite(audioPin02, HIGH);
-        relay("off");
+        pinResetFast(audioPin02);
+        if (cmd == previousCmd){
+            if (currentMillis - cmdMillis >= 527000) { // 125000 Let audio play until finished, then shut down the relay..
+                pinSetFast(audioPin02);
+                relay("off");
+                pinFixer(cmd);          // Shut down the output pin on ctrlr towrards audiofx.. 
+            }
+        } else {
+            cmdMillis = millis();
+            previousCmd = cmd;
+        }
     }
 }
 
@@ -239,7 +260,7 @@ void button(){                                                  // Button press=
                 relay("off");                                   // Turn off power to the amplifier
                 resetAudio();                                   // Reset the audio card to kill any playing audio..
                 pinFixer("all");                                // Shut down the output pin on ctrlr towrards audiofx..not sure this works
-                exit;                                          // We do not want anything more happening..break out!
+                exit;                                           // We do not want anything more happening..break out!
             }
         } else {
             pressedMillis = millis();
@@ -264,7 +285,7 @@ void staticDisplay(){
     if (currentMillis - previousMillis >= cockpitInterval) {
         // save the last time you blinked the LED
         previousMillis = currentMillis;
-
+    
         // if the LED is off turn it on and vice-versa:
         if (state == 1) {
             pixels.setPixelColor(1, 255, 0, 0);
@@ -283,20 +304,20 @@ void staticDisplay(){
             state = 1;
         }
     }
-
+    
     // Engine pulsating..brute..
     pixels.setPixelColor(4, brightness0, brightness0, brightness0); // Even numbers
     pixels.setPixelColor(6, brightness0, brightness0, brightness0);
-    pixels.setPixelColor(8, brightness0, brightness0, brightness0);
+    pixels.setPixelColor(8, brightness0, brightness0, brightness0);   
     pixels.setPixelColor(10, brightness0, brightness0, brightness0);
     pixels.setPixelColor(5, brightness1, brightness1, brightness1); // Odd numbers
     pixels.setPixelColor(7, brightness1, brightness1, brightness1);
-    pixels.setPixelColor(9, brightness1, brightness1, brightness1);
+    pixels.setPixelColor(9, brightness1, brightness1, brightness1);    
 
     // change the brightness for next time through the loop:
     brightness0 = brightness0 + fadeAmount0;
     brightness1 = brightness1 + fadeAmount1;
-
+    
     if (currentMillis - previousMillis >= engineInterval) {
         // save the last time you blinked the LED
         previousMillis = currentMillis;
@@ -308,7 +329,7 @@ void staticDisplay(){
             fadeAmount1 = -fadeAmount1 ;
         }
         pixels.show();
-    }
+    } 
 }
 
 void takeOff (){                            // Very early attempt at a take off sequence..basically just found out how to do the timing
@@ -326,21 +347,20 @@ void takeOff (){                            // Very early attempt at a take off 
         }else if((currentMillis - sequenceStart > 5780) && (currentMillis - sequenceStart < 10000)){
             colorEngine(67,67,255);         // After a set amount of time we need a different color as the engine lights should change
             pixels.setBrightness(100);    // Reduce brightness..not sure I need this in the end.
-            pixels.show();                // Send info to LEDs..
+            pixels.show();                // Send info to LEDs.. 
         } else if(currentMillis - sequenceStart > 10000){
             relay("off");
-        }
+        }    
     }
 }
 
 void soundDisplay(String program){
     staticDisplay();
-
     if (program == "intro"){
         if (audio == 0){                        // I just want the audio pin to trigger ONCE..so I have to create some sort of controller. audio was set to 0 during power up
             digitalWrite(audioPin01, LOW);      // Trigger audio
             audio = 1;                          // Set audio to 1 as the sound has been triggered..no need to do it again
-
+            
             if (currentMillis - previousMillis >= interval) {
                 previousMillis = currentMillis;
                 digitalWrite(audioPin01, HIGH);
@@ -350,7 +370,7 @@ void soundDisplay(String program){
         if (audio == 0){                        // I just want the audio pin to trigger ONCE..so I have to create some sort of controller. audio was set to 0 during power up
             digitalWrite(audioPin02, LOW);      // Trigger audio
             audio = 1;                          // Set audio to 1 as the sound has been triggered..no need to do it again
-
+            
             if (currentMillis - previousMillis >= interval) {
                 previousMillis = currentMillis;
                 digitalWrite(audioPin02, HIGH);
@@ -360,7 +380,7 @@ void soundDisplay(String program){
 }
 
 void colorEngine(int r, int g, int b) {         // Function to color the engine portion of the strip
-    for(int i=0; i<4; i++) {                    // Set aside the first 5 pixels for the engine during testing, think this will be 17 in the end..
+    for(int i=0; i<4; i++) {                    // Set aside the first 5 pixels for the engine during testing, think this will be 17 in the end.. 
         pixels.setPixelColor(i, r, g, b);
     }
     pixels.show();                            // Send info to LEDs
@@ -377,7 +397,7 @@ void volumeU(int v){                    // Volume up function
 
 void volumeD(int v){                    // Volume down function
     for(int y=v; y>0; y--) {            // Basically this sets the volume down pin low for 20 ms, then sets it high again
-        pinResetFast(volumeDown);
+        pinResetFast(volumeDown);        
         delay(20);
         pinSetFast(volumeDown);
         delay(20);
@@ -389,10 +409,10 @@ void lightsOff(){                               // Function to clear the lights.
     pixels.show();                        // Turn all LEDs off ASAP, this does not allways work for some reason
 }
 
-void relay(String cmd){                 // The relay that controls the power to the amp takes a string command, on or off
-    if (cmd == "off"){                   // Reason for this is to remove static hum when displaying only lights
+void relay(String relayCmd){                 // The relay that controls the power to the amp takes a string command, on or off
+    if (relayCmd == "off"){                   // Reason for this is to remove static hum when displaying only lights
         pinResetFast(relPin);
-    }else if(cmd == "on"){
+    }else if(relayCmd == "on"){
         pinSetFast(relPin);
     }
 }
@@ -415,7 +435,7 @@ void pinFixer(String lowPin){ // Remember to add the pins here that are used for
 }
 
 void connect() {
-  if (Particle.connected() == false) {  // If not connected, then..
+  if (Particle.connected() == false) {  // If not connected, then.. 
     Particle.connect();                 // connect!
   }
 }
