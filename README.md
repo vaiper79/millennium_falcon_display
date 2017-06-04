@@ -11,6 +11,10 @@ You have been warned :)
 
 Also, feel free to copy/modify and use this piece of code if you find it useful. As thanks you could always follow my blog (https://oleandre.net) and/or Instagram (@oleshobbyblog). 
 
+Credits (I will try to list the sources I have used for this project):
+- How to avoid using delay while waiting for a certain point in time: https://www.arduino.cc/en/Tutorial/BlinkWithoutDelay
+- Photon + Neopixel controls: https://github.com/technobly/Particle-NeoPixel
+
 Take care!
 
 OleA
