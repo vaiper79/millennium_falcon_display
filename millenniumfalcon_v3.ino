@@ -6,7 +6,6 @@ Takeoff sequence, needs some planning in terms of what the engine should look li
 // Get this show started, we will use Neopixels in this version
 #include "application.h"        // Not 100% sure what this is..
 #include <neopixel.h>
-//#include "neopixel/neopixel.h"  // Neopixel Library
 
 // Set Photon to correct mode
 SYSTEM_MODE(SEMI_AUTOMATIC);
@@ -151,8 +150,6 @@ int falcon(String cmd) {
 
 void loop(){                    // The loop that runs all the time.. looper = 0 reserved
     connect();
-    
-    
     
     if (boot == 0){                                             // Do these things only once, at boot
         Particle.publish("Admin:" ,"Booted or reset, ready for duty");
@@ -402,10 +399,3 @@ void connect() {
     Particle.connect();                 // connect!
   }
 }                        // Complete
-
-void colorEngine(int r, int g, int b) {         // Function to color the engine portion of the strip
-    for(int i=0; i<4; i++) {                    // Set aside the first 5 pixels for the engine during testing, think this will be 17 in the end.. 
-        pixels.setPixelColor(i, r, g, b);
-    }
-    pixels.show();                            // Send info to LEDs
-} // Probably not in use.. 
