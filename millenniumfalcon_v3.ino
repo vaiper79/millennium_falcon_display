@@ -49,10 +49,11 @@ int fadeAmountOdd = -1;
 int fadeAmount = 1;
 int brightness = 0;
 int maxBrightness = 100;
-int blink = 1;
 
 // States and the like
 int boot = 0;
+int blink = 1;
+int bob = 0;
 
 int cockpitLedState = 1;
 int currentButtonState;
@@ -159,7 +160,7 @@ void loop(){                    // The loop that runs all the time.. looper = 0 
     
     if (boot == 0){                                             // Do these things only once, at boot
         Particle.publish("Admin:" ,"Booted or reset, ready for duty");
-        //volumeD(25); // TEMPORARY, working at night config
+        volumeD(25); // TEMPORARY, working at night config
         boot = 1;
     }
     
@@ -230,7 +231,17 @@ void stopAll(){
     relay("off");                                   // Turn off power to the amplifier
     resetAudio();                                   // Reset the audio card to kill any playing audio..
     pinFixer("all");                                // Shut down the output pin on ctrlr towrards audiofx..not sure this works
-    //volumeD(25);                                    // TEMPORARY, working at night config
+    
+    // Stuff to reset for another takeOff run
+    fadeAmount = 1;
+    brightnessEven = 10; 
+    brightnessOdd = 10;
+    blink = 1;
+    bob = 0;
+    fadeAmountOdd = -1;
+    fadeAmountEven = 1;
+    
+    volumeD(25);                                    // TEMPORARY, working at night config
 }                         // Complete
 
 void button(){                                                  // Button press= LOW, LED lit = HIGH
@@ -254,9 +265,9 @@ void button(){                                                  // Button press=
             if (longPress == 1){                                // and what if we pressed it a really really really long time?
                 longPress = 0;                                  // Well..we're not pressing it for a really really really long time any more.. 
             }else{
-                stopAll();                                          // because if that is the case then we need to stop what we're doing and
-                looper = looper + 1;                              // Increase the looper variable to move to the next program in line
-                if (looper == 4) looper = 0;                       // and make sure we loop looper around when we have nothing more to show off :)
+                stopAll();                                      // because if that is the case then we need to stop what we're doing and
+                looper = looper + 1;                            // Increase the looper variable to move to the next program in line
+                if (looper == 4) looper = 0;                    // and make sure we loop looper around when we have nothing more to show off :)
             }
             previousButtonState = currentButtonState;           // Record the button state for the next run around.. 
         }
@@ -270,7 +281,7 @@ void staticDisplay(){
 
     // Cockpit blinking..brute coding
     if (currentMillis - previousCockpitMillis >= cockpitInterval) {
-        // save the last time you blinked the LED
+
         previousCockpitMillis = currentMillis;
 
         if (cockpitLedState == 1) {
@@ -293,14 +304,14 @@ void staticDisplay(){
     }
 
     if (currentMillis - previousEngineMillis >= engineInterval) {
-        // save the last time you blinked the LED
+
         previousEngineMillis = currentMillis;
         // reverse the direction of the fading at the ends of the fade:
         if (brightnessEven == minEngineBrightness || brightnessEven == maxEngineBrightness) {
-            fadeAmountEven = -fadeAmountEven ;
+            fadeAmountEven = -fadeAmountEven;
         }
         if (brightnessOdd == maxEngineBrightness || brightnessOdd == minEngineBrightness) {
-            fadeAmountOdd = -fadeAmountOdd ;
+            fadeAmountOdd = -fadeAmountOdd;
         }
         
         // change the brightness for next time through the loop:
@@ -320,29 +331,18 @@ void staticDisplay(){
 }                   // Complete
 
 void takeOff (){  
-    // Start cockpit lights static..
-    // 2 sec blinking lights in cockpit
-    // 4,11 start headlights 
-    // 7,57 blink engine 
-    // 9,6 blink engine again
-    // 10,6 blink engine again
-    // 12 blink 
-    // 13,7 blink on final..dimmed blue
-    // 19,5 extra bright
-    // 21,9 down to normal
-    // Let run... 
-    // Reset at 2 minute mark
     
+    // Timings
     unsigned long staticCocpit = 2000;
-    unsigned long firstBlink = 4110;
-    unsigned long secondBlink = 7570;
-    unsigned long thirdBlink = 9600;
+    unsigned long firstBlink = 4450; 
+    unsigned long secondBlink = 7000;
+    unsigned long thirdBlink = 9400;
     unsigned long fourthBlink = 10600;
-    unsigned long fifthBlink = 12000;
-    unsigned long engineOn = 13700;
-    unsigned long engineBright = 19500;
+    unsigned long fifthBlink = 12100;
+    unsigned long engineOn = 14100;
+    unsigned long engineBright = 20000;
     unsigned long normalEngine = 21900;
-    unsigned long end = 125000; // 2 minutes
+    unsigned long end = 125000;
     
     playSound("takeOff"); // Start the sound
     
@@ -382,6 +382,8 @@ void takeOff (){
     }
     
     // Engine..
+    
+    // 5 Engine flashes before proper start
     if ((millisSinceStart >= firstBlink) && (millisSinceStart < secondBlink)) {
         if (blink == 1){
             if (currentMillis - previousEngineMillis >= flashInterval) {
@@ -406,7 +408,6 @@ void takeOff (){
             } 
         }
     }
-    
     if ((millisSinceStart >= secondBlink) && (millisSinceStart < thirdBlink)) {
         if (blink == 2){
             if (currentMillis - previousEngineMillis >= flashInterval) {
@@ -430,7 +431,7 @@ void takeOff (){
                 }
             } 
         }
-    }    
+    }   
     if ((millisSinceStart >= thirdBlink) && (millisSinceStart < fourthBlink)) {
         if (blink == 3){        
             if (currentMillis - previousEngineMillis >= flashInterval) {
@@ -503,6 +504,8 @@ void takeOff (){
             }
         }
     } 
+    
+    // Engine starts..kind of
     if ((millisSinceStart >= engineOn) && (millisSinceStart < engineBright)) {
         // Engine lights up
         if (blink == 6){
@@ -524,6 +527,8 @@ void takeOff (){
             }
         }
     } 
+    
+    // Bright flash..
     if ((millisSinceStart >= engineBright) && (millisSinceStart < normalEngine)) {
         // bright flash that fades down to normal brightness
         if (blink == 7){
@@ -531,8 +536,9 @@ void takeOff (){
                 // save the last time you blinked the LED
                 previousEngineMillis = currentMillis;
                 
-                if (brightness == maxBrightness) {
-                    fadeAmount = -fadeAmount ;
+                if (brightness == maxBrightness+100) {
+                    fadeAmount = -fadeAmount;
+                    bob = 1;
                 }
                 
                 // change the brightness for next time through the loop:
@@ -542,17 +548,19 @@ void takeOff (){
                 for (int i=4; i <= 10; i++){
                     pixels.setPixelColor(i, brightness, brightness, brightness); // Even numbers
                 }
-                
-                if (brightness == maxEngineBrightness-5) {
-                    blink = 8;
-                    fadeAmount = 1;
-                    brightnessEven = maxEngineBrightness-5;
-                    brightnessOdd = maxEngineBrightness-5;
+                if (bob == 1){
+                    if (brightness == maxEngineBrightness-5) {
+                        blink = 0;
+                        fadeAmount = 1;
+                        brightnessEven = maxEngineBrightness-5;
+                        brightnessOdd = maxEngineBrightness-5;
+                    }
                 }
-
             }
         }
-    }     
+    }    
+    
+    // Normal engine running
     if (millisSinceStart >= normalEngine) {
         if (currentMillis - previousEngineMillis >= engineInterval) {
             // save the last time you blinked the LED
@@ -578,8 +586,10 @@ void takeOff (){
             pixels.setPixelColor(7, brightnessOdd, brightnessOdd, brightnessOdd);
             pixels.setPixelColor(9, brightnessOdd, brightnessOdd, brightnessOdd);    
         } 
-    }                   // Complete
-    if (millisSinceStart >= end) { // Done, stop!
+    }    
+    
+    // Done, stop!
+    if (millisSinceStart >= end) { 
         stopAll();
     }
     pixels.show();
