@@ -18,10 +18,10 @@ SYSTEM_MODE(SEMI_AUTOMATIC);
 // LEDs
 #define pixelPin    WKP // Plan tao use juse a long LED strip, and assign a certain portion to the engine, cockpit etc.
 // Misc pins
-#define relPin          DAC // Controlling the relay
-#define buttonPress     RX // Input pin (pull_down)
-#define buttonLED       TX // Output pin
-// Volume - issues..looking at other option
+#define relPin          DAC     // Controlling the relay
+#define buttonPress     RX      // Input pin (pull_down)
+#define buttonLED       TX      // Output pin
+// Volume
 #define volumeUp    A5
 #define volumeDown  A4
 // Audio Reset
@@ -37,15 +37,19 @@ Adafruit_NeoPixel pixels = Adafruit_NeoPixel(numPix, pixelPin, pixType);
 // Variables
 int looper = 0;                     // So we don't enter any if statements in the void loop :)
 int audio = 0;                      // Used to set state so audio files are only triggered once
+unsigned long takeOffStart;
 
-int cockpitBrightness = 30;                 // 255 is waaay to bright. Go below 50 to be able to see details in the cockpit
+int cockpitBrightness = 30;                     // 255 is waaay to bright. Go below 50 to be able to see details in the cockpit
 int minEngineBrightness = 20;
 int maxEngineBrightness = 50;
-int brightnessEven = maxEngineBrightness/2;   // how bright the LED is
-int brightnessOdd = maxEngineBrightness/2;    // how bright the LED is
-int fadeAmountEven = 1;                     // how many points to fade the LED by
+int brightnessEven = maxEngineBrightness/2;     // how bright the LED is
+int brightnessOdd = maxEngineBrightness/2;      // how bright the LED is
+int fadeAmountEven = 1;                         // how many points to fade the LED by
 int fadeAmountOdd = -1;
-
+int fadeAmount = 1;
+int brightness = 0;
+int maxBrightness = 100;
+int blink = 1;
 
 // States and the like
 int boot = 0;
@@ -69,10 +73,11 @@ unsigned long previousEngineMillis = 0;
 unsigned long previousCockpitMillis = 0;
 
 const long cockpitInterval = 200; //500
+const long flashInterval = 5;
 const long engineInterval = 20;
 const long interval = 2000;
 
-// Tempt variables..testing etc
+// Temp variables..testing etc
 int wait = 1000;
 
 void setup(){
@@ -111,6 +116,7 @@ int falcon(String cmd) {
         looper = 3;
     }
     if(cmd == "takeOff"){
+        takeOffStart = millis(); // To get a time for when this started
         looper = 4;
     }
     
@@ -153,7 +159,7 @@ void loop(){                    // The loop that runs all the time.. looper = 0 
     
     if (boot == 0){                                             // Do these things only once, at boot
         Particle.publish("Admin:" ,"Booted or reset, ready for duty");
-        volumeD(25);
+        //volumeD(25); // TEMPORARY, working at night config
         boot = 1;
     }
     
@@ -180,7 +186,7 @@ void playSound(String audioCmd){
         pinResetFast(audioPin00);
         if (audioCmd == previousAudioCmd){
             if (currentMillis - cmdMillis >= 125000) { // 125000 Let audio play until finished, then shut down the relay..
-                pinSetFast(audioPin00);
+                resetAudio();
                 relay("off");
                 pinFixer(audioCmd);          // Shut down the output pin on ctrlr towrards audiofx.. 
             }
@@ -194,7 +200,7 @@ void playSound(String audioCmd){
         pinResetFast(audioPin01);
         if (cmd == previousAudioCmd){
             if (currentMillis - cmdMillis >= 386000) { // 125000 Let audio play until finished, then shut down the relay..
-                pinSetFast(audioPin01);
+                resetAudio();
                 relay("off");
                 pinFixer(audioCmd);          // Shut down the output pin on ctrlr towrards audiofx.. 
             }
@@ -208,7 +214,7 @@ void playSound(String audioCmd){
         pinResetFast(audioPin02);
         if (audioCmd == previousAudioCmd){
             if (currentMillis - cmdMillis >= 527000) { // 125000 Let audio play until finished, then shut down the relay..
-                pinSetFast(audioPin02);
+                resetAudio();
                 relay("off");
                 pinFixer(audioCmd);          // Shut down the output pin on ctrlr towrards audiofx.. 
             }
@@ -224,7 +230,7 @@ void stopAll(){
     relay("off");                                   // Turn off power to the amplifier
     resetAudio();                                   // Reset the audio card to kill any playing audio..
     pinFixer("all");                                // Shut down the output pin on ctrlr towrards audiofx..not sure this works
-    volumeD(25);                                    // TEMPORARY, working at night config
+    //volumeD(25);                                    // TEMPORARY, working at night config
 }                         // Complete
 
 void button(){                                                  // Button press= LOW, LED lit = HIGH
@@ -266,26 +272,22 @@ void staticDisplay(){
     if (currentMillis - previousCockpitMillis >= cockpitInterval) {
         // save the last time you blinked the LED
         previousCockpitMillis = currentMillis;
-    
-        // if the LED is off turn it on and vice-versa:
+
         if (cockpitLedState == 1) {
             pixels.setPixelColor(1, cockpitBrightness, 0, 0);
             pixels.setPixelColor(2, cockpitBrightness, cockpitBrightness, cockpitBrightness);
             pixels.setPixelColor(3, 0, 0, cockpitBrightness-10);
             cockpitLedState = 2;
-
         } else if(cockpitLedState == 2) {
             pixels.setPixelColor(2, cockpitBrightness, 0, 0);
             pixels.setPixelColor(3, cockpitBrightness, cockpitBrightness, cockpitBrightness);
             pixels.setPixelColor(1, 0, 0, cockpitBrightness-10);
             cockpitLedState = 3;
-
         } else if(cockpitLedState == 3) {
             pixels.setPixelColor(3, cockpitBrightness, 0, 0);
             pixels.setPixelColor(1, cockpitBrightness, cockpitBrightness, cockpitBrightness);
             pixels.setPixelColor(2, 0, 0, cockpitBrightness-10);
             cockpitLedState = 1;
-            
         }
         pixels.show();
     }
@@ -317,27 +319,270 @@ void staticDisplay(){
     pixels.show();
 }                   // Complete
 
-void takeOff (){                            // Very early attempt at a take off sequence..basically just found out how to do the timing
-    unsigned long currentMillis = millis();
-    if (audio == 0){                        // I just want the audio pin to trigger ONCE..so I have to create some sort of controller. audio was set to 0 during power up
-        digitalWrite(audioPin00, LOW);      // Trigger audio
-        audio = 1;                          // Set audio to 1 as the sound has been triggered..no need to do it again
-        if (currentMillis - sequenceStart >1000){
-            digitalWrite(audioPin00, HIGH);
+void takeOff (){  
+    // Start cockpit lights static..
+    // 2 sec blinking lights in cockpit
+    // 4,11 start headlights 
+    // 7,57 blink engine 
+    // 9,6 blink engine again
+    // 10,6 blink engine again
+    // 12 blink 
+    // 13,7 blink on final..dimmed blue
+    // 19,5 extra bright
+    // 21,9 down to normal
+    // Let run... 
+    // Reset at 2 minute mark
+    
+    unsigned long staticCocpit = 2000;
+    unsigned long firstBlink = 4110;
+    unsigned long secondBlink = 7570;
+    unsigned long thirdBlink = 9600;
+    unsigned long fourthBlink = 10600;
+    unsigned long fifthBlink = 12000;
+    unsigned long engineOn = 13700;
+    unsigned long engineBright = 19500;
+    unsigned long normalEngine = 21900;
+    unsigned long end = 125000; // 2 minutes
+    
+    playSound("takeOff"); // Start the sound
+    
+    unsigned long currentMillis = millis(); // Current time
+    
+    unsigned long millisSinceStart = currentMillis - takeOffStart; // How long has this sequence been running
+    
+    if ((millisSinceStart >= 0) && (millisSinceStart < staticCocpit)) {
+        pixels.setPixelColor(1, 30, 0, 0);
+        pixels.setPixelColor(2, 30, 30, 20);
+        pixels.setPixelColor(3, 0, 0, 20);
+    }
+    
+    // Cockpit lights
+    if (millisSinceStart >= staticCocpit) {
+        if (currentMillis - previousCockpitMillis >= cockpitInterval) {
+            // save the last time you blinked the LED
+            previousCockpitMillis = currentMillis;
+    
+            if (cockpitLedState == 1) {
+                pixels.setPixelColor(1, cockpitBrightness, 0, 0);
+                pixels.setPixelColor(2, cockpitBrightness, cockpitBrightness, cockpitBrightness);
+                pixels.setPixelColor(3, 0, 0, cockpitBrightness-10);
+                cockpitLedState = 2;
+            } else if(cockpitLedState == 2) {
+                pixels.setPixelColor(2, cockpitBrightness, 0, 0);
+                pixels.setPixelColor(3, cockpitBrightness, cockpitBrightness, cockpitBrightness);
+                pixels.setPixelColor(1, 0, 0, cockpitBrightness-10);
+                cockpitLedState = 3;
+            } else if(cockpitLedState == 3) {
+                pixels.setPixelColor(3, cockpitBrightness, 0, 0);
+                pixels.setPixelColor(1, cockpitBrightness, cockpitBrightness, cockpitBrightness);
+                pixels.setPixelColor(2, 0, 0, cockpitBrightness-10);
+                cockpitLedState = 1;
+            }
         }
     }
-    if (audio == 1){                        // Since audio has started, we need to start the lights
-        if (currentMillis - sequenceStart <= 5780){     // The MF engine lights are darker blue for a bit, then as the engines "explode" to life, they turn a different color..the audio file is about 5610 ms in when this happens..
-            colorEngine(0,0,255);           // The initial blue
-            pixels.show();                  // Send info to LEDs..
-        }else if((currentMillis - sequenceStart > 5780) && (currentMillis - sequenceStart < 10000)){
-            colorEngine(67,67,255);         // After a set amount of time we need a different color as the engine lights should change
-            pixels.setBrightness(100);    // Reduce brightness..not sure I need this in the end.
-            pixels.show();                // Send info to LEDs.. 
-        } else if(currentMillis - sequenceStart > 10000){
-            relay("off");
-        }    
+    
+    // Engine..
+    if ((millisSinceStart >= firstBlink) && (millisSinceStart < secondBlink)) {
+        if (blink == 1){
+            if (currentMillis - previousEngineMillis >= flashInterval) {
+                // save the last time you blinked the LED
+                previousEngineMillis = currentMillis;
+                // reverse the direction of the fading at the ends of the fade:
+                if (brightness == maxBrightness) {
+                    fadeAmount = -fadeAmount ;
+                }
+                
+                // change the brightness for next time through the loop:
+                brightness = brightness + fadeAmount;
+                
+                // Engine pulsating..brute..
+                for (int i=4; i <= 10; i++){
+                    pixels.setPixelColor(i, brightness, brightness, brightness); // Even numbers
+                }
+                if (brightness == 0) {
+                    blink = 2;
+                    fadeAmount = 1;
+                }
+            } 
+        }
     }
+    
+    if ((millisSinceStart >= secondBlink) && (millisSinceStart < thirdBlink)) {
+        if (blink == 2){
+            if (currentMillis - previousEngineMillis >= flashInterval) {
+                // save the last time you blinked the LED
+                previousEngineMillis = currentMillis;
+                // reverse the direction of the fading at the ends of the fade:
+                if (brightness == maxBrightness) {
+                    fadeAmount = -fadeAmount ;
+                }
+                
+                // change the brightness for next time through the loop:
+                brightness = brightness + fadeAmount;
+                
+                // Engine pulsating..brute..
+                for (int i=4; i <= 10; i++){
+                    pixels.setPixelColor(i, brightness, brightness, brightness); // Even numbers
+                }
+                if (brightness == 0) {
+                    blink = 3;
+                    fadeAmount = 1;
+                }
+            } 
+        }
+    }    
+    if ((millisSinceStart >= thirdBlink) && (millisSinceStart < fourthBlink)) {
+        if (blink == 3){        
+            if (currentMillis - previousEngineMillis >= flashInterval) {
+                // save the last time you blinked the LED
+                previousEngineMillis = currentMillis;
+                // reverse the direction of the fading at the ends of the fade:
+                if (brightness == maxBrightness) {
+                    fadeAmount = -fadeAmount ;
+                }
+                
+                // change the brightness for next time through the loop:
+                brightness = brightness + fadeAmount;
+                
+                // Engine pulsating..brute..
+                for (int i=4; i <= 10; i++){
+                    pixels.setPixelColor(i, brightness, brightness, brightness); // Even numbers
+                }  
+                if (brightness == 0) {
+                    blink = 4;
+                    fadeAmount = 1;
+                }
+            }
+        }
+    } 
+    if ((millisSinceStart >= fourthBlink) && (millisSinceStart < fifthBlink)) {
+        if (blink == 4){           
+            if (currentMillis - previousEngineMillis >= flashInterval) {
+                // save the last time you blinked the LED
+                previousEngineMillis = currentMillis;
+                // reverse the direction of the fading at the ends of the fade:
+                if (brightness == maxBrightness) {
+                    fadeAmount = -fadeAmount ;
+                }
+                
+                // change the brightness for next time through the loop:
+                brightness = brightness + fadeAmount;
+                
+                // Engine pulsating..brute..
+                for (int i=4; i <= 10; i++){
+                    pixels.setPixelColor(i, brightness, brightness, brightness); // Even numbers
+                }  
+                if (brightness == 0) {
+                    blink = 5;
+                    fadeAmount = 1;
+                }
+            } 
+        }
+    } 
+    if ((millisSinceStart >= fifthBlink) && (millisSinceStart < engineOn)) {
+        if (blink == 5){
+            if (currentMillis - previousEngineMillis >= flashInterval) {
+                // save the last time you blinked the LED
+                previousEngineMillis = currentMillis;
+                // reverse the direction of the fading at the ends of the fade:
+                if (brightness == maxBrightness) {
+                    fadeAmount = -fadeAmount ;
+                }
+                
+                // change the brightness for next time through the loop:
+                brightness = brightness + fadeAmount;
+                
+                // Engine pulsating..brute..
+                for (int i=4; i <= 10; i++){
+                    pixels.setPixelColor(i, brightness, brightness, brightness); // Even numbers
+                }
+                if (brightness == 0) {
+                    blink = 6;
+                    fadeAmount = 1;
+                }
+            }
+        }
+    } 
+    if ((millisSinceStart >= engineOn) && (millisSinceStart < engineBright)) {
+        // Engine lights up
+        if (blink == 6){
+            if (currentMillis - previousEngineMillis >= flashInterval) {
+                // save the last time you blinked the LED
+                previousEngineMillis = currentMillis;
+
+                // change the brightness for next time through the loop:
+                brightness = brightness + fadeAmount;
+                
+                // Engine pulsating..brute..
+                for (int i=4; i <= 10; i++){
+                    pixels.setPixelColor(i, brightness, brightness, brightness); // Even numbers
+                }
+                if (brightness == maxBrightness) {
+                    blink = 7;
+                    fadeAmount = 1;
+                }
+            }
+        }
+    } 
+    if ((millisSinceStart >= engineBright) && (millisSinceStart < normalEngine)) {
+        // bright flash that fades down to normal brightness
+        if (blink == 7){
+            if (currentMillis - previousEngineMillis >= flashInterval) {
+                // save the last time you blinked the LED
+                previousEngineMillis = currentMillis;
+                
+                if (brightness == maxBrightness) {
+                    fadeAmount = -fadeAmount ;
+                }
+                
+                // change the brightness for next time through the loop:
+                brightness = brightness + fadeAmount;
+                
+                // Engine pulsating..brute..
+                for (int i=4; i <= 10; i++){
+                    pixels.setPixelColor(i, brightness, brightness, brightness); // Even numbers
+                }
+                
+                if (brightness == maxEngineBrightness-5) {
+                    blink = 8;
+                    fadeAmount = 1;
+                    brightnessEven = maxEngineBrightness-5;
+                    brightnessOdd = maxEngineBrightness-5;
+                }
+
+            }
+        }
+    }     
+    if (millisSinceStart >= normalEngine) {
+        if (currentMillis - previousEngineMillis >= engineInterval) {
+            // save the last time you blinked the LED
+            previousEngineMillis = currentMillis;
+            // reverse the direction of the fading at the ends of the fade:
+            if (brightnessEven == minEngineBrightness || brightnessEven == maxEngineBrightness) {
+                fadeAmountEven = -fadeAmountEven ;
+            }
+            if (brightnessOdd == maxEngineBrightness || brightnessOdd == minEngineBrightness) {
+                fadeAmountOdd = -fadeAmountOdd ;
+            }
+            
+            // change the brightness for next time through the loop:
+            brightnessEven = brightnessEven + fadeAmountEven;
+            brightnessOdd = brightnessOdd + fadeAmountOdd;
+            
+            // Engine pulsating..brute..
+            pixels.setPixelColor(4, brightnessEven, brightnessEven, brightnessEven); // Even numbers
+            pixels.setPixelColor(6, brightnessEven, brightnessEven, brightnessEven);
+            pixels.setPixelColor(8, brightnessEven, brightnessEven, brightnessEven);   
+            pixels.setPixelColor(10, brightnessEven, brightnessEven, brightnessEven);
+            pixels.setPixelColor(5, brightnessOdd, brightnessOdd, brightnessOdd); // Odd numbers
+            pixels.setPixelColor(7, brightnessOdd, brightnessOdd, brightnessOdd);
+            pixels.setPixelColor(9, brightnessOdd, brightnessOdd, brightnessOdd);    
+        } 
+    }                   // Complete
+    if (millisSinceStart >= end) { // Done, stop!
+        stopAll();
+    }
+    pixels.show();
 }                        // WIP
 
 void soundDisplay(String program){
