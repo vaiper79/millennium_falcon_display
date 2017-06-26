@@ -382,6 +382,7 @@ void takeOff (){
     
     // Cockpit lights
     if (millisSinceStart >= staticCocpit) {
+        pixels.setPixelColor(0, 128, 128, 128); // Headlights
         if (currentMillis - previousCockpitMillis >= cockpitInterval) {
             // save the last time you blinked the LED
             previousCockpitMillis = currentMillis;
