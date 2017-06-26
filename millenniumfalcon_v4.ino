@@ -264,9 +264,11 @@ void button() {
         if (currentButtonState == HIGH && previousButtonState == LOW) {
             
             // Button pressed for less than 2 seconds, go to the next thing on the list
-            if (secs_held <= 2) {
+            if (secs_held <= 1) {
                 Particle.publish("Looper before:" ,looper);
-                looper = looper + 1; 
+                looper = looper + 1;
+                buttonLight();
+                
                 if (looper == 1) falcon("basic");
                 if (looper == 2) falcon("intro");
                 if (looper == 3) falcon("medley");
@@ -275,11 +277,10 @@ void button() {
                     stopAll();
                     resetter("complete");
                 }
-                buttonLight();
             }
             
             // Button held for more than 2 seconds, reset all 
-            if (secs_held > 2) {
+            if (secs_held > 1) {
                 ledblink(3,200,buttonLED);
                 stopAll();
                 resetter("complete");
