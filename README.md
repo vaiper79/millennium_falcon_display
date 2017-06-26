@@ -1,6 +1,6 @@
 # millennium_falcon_display
 
-These are the files used to develop and control the audio/lighting circuit I will use on my Bandai Millennium Falcon once I get it built. 
+These are the files used to develop and control the audio/lighting circuit I will use on my Bandai Millennium Falcon scale model.
 
 The files should be fairly selfexplanatory in their naming, i.e. "soundtest.ino" was/is used to test all the sound pins on the audio card. 
 
@@ -14,6 +14,7 @@ Also, feel free to copy/modify and use this piece of code if you find it useful.
 Credits (I will try to list the sources I have used for this project):
 - How to avoid using delay while waiting for a certain point in time: https://www.arduino.cc/en/Tutorial/BlinkWithoutDelay
 - Photon + Neopixel controls: https://github.com/technobly/Particle-NeoPixel
+- Hold button code: https://playground.arduino.cc/Code/HoldButton
 
 Take care!
 

@@ -1,9 +1,14 @@
-// This #include statement was automatically added by the Particle IDE.
-#include <neopixel.h>
-
 /*
-Remaining items:
-Takeoff sequence, needs some planning in terms of what the engine should look like for the various sounds..
+The finished (version 1) sketch to command the Bandai Millennium Falcon 1/144th scale model, adding lights and sound.
+
+A medley of code, some my own, much copied and modified from:
+
+- How to avoid using delay while waiting for a certain point in time: https://www.arduino.cc/en/Tutorial/BlinkWithoutDelay
+- Photon + Neopixel controls: https://github.com/technobly/Particle-NeoPixel
+- Hold button code: https://playground.arduino.cc/Code/HoldButton
+
+Credit where credit is due, hopefully I haven't forgotten anyone. For general ideas and very good how-to's I have often gone to http://adafruit.com. 
+
 */
 
 // Get this show started, we will use Neopixels in this version
@@ -37,53 +42,49 @@ SYSTEM_MODE(SEMI_AUTOMATIC);
 // Define the Neopixel strip
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(numPix, pixelPin, pixType);
 
-// Variables
-int looper = 0;                     // So we don't enter any if statements in the void loop :)
-int audio = 0;                      // Used to set state so audio files are only triggered once
-unsigned long takeOffStart;
+// Variables & constants
+int looper = 0;                                     // To tell what sequence to run in the void loop function. 
 
+// LED variables & constants
 const int cockpitBrightness = 30;                     // 255 is waaay to bright. Go below 50 to be able to see details in the cockpit
 const int minEngineBrightness = 20;
 const int maxEngineBrightness = 50;
+const int maxBrightness = 100;
 int brightnessEven = maxEngineBrightness/2;     // how bright the LED is
 int brightnessOdd = maxEngineBrightness/2;      // how bright the LED is
-
 int fadeAmountEven = 1;                         // how many points to fade the LED by
 int fadeAmountOdd = -1;
 int fadeAmount = 1;
 int brightness = 0;
-const int maxBrightness = 100;
+
 
 // States and the like
 int boot = 0;
 int blink = 1;
-int bob = 0;
+int maxValueReached = 0;
+byte cockpitLedState = 1;
 
-int cockpitLedState = 1;
-int currentButtonState;
-int previousButtonState = HIGH;
-int longPress = 0; 
-
-String cmd;
-String previousCmd;
-String previousAudioCmd;
-
-// Timing variables
-unsigned long pressedMillis;
-unsigned long startTime = 0;        // For timing lights and sound..need to be more specific..
-unsigned long sequenceStart;        // For timing lights and sound
-unsigned long previousMillis = 0;       
+// Timing variables & constants
+unsigned long previousMillis = 0;
+unsigned long previousButtonMillis = 0;
 unsigned long previousEngineMillis = 0;       
 unsigned long previousCockpitMillis = 0;
 unsigned long cmdMillis = 0;
-
+unsigned long takeOffStart;
 const long cockpitInterval = 200; //500
+const long buttonInterval = 500;    // How long the button is lit after being pressed
 const long flashInterval = 5;
 const long engineInterval = 20;
 const long interval = 2000;
+const int wait = 1000;
 
-// Temp variables..testing etc
-int wait = 1000;
+// Button Variables
+long millis_held;    // How long the button was held (milliseconds)
+long secs_held;      // How long the button was held (seconds)
+long prev_secs_held; // How long the button was held in the previous check
+unsigned long firstTime; // how long since the button was first pressed 
+int currentButtonState;
+byte previousButtonState = HIGH;
 
 void setup(){
     Particle.function("falcon", falcon);    // The cloud exposed function
@@ -111,37 +112,44 @@ void setup(){
 
 int falcon(String cmd) {  // This function allows me to call commands as if they were sent via cloud..i.e. via the button
     // Control Commands...
-    if (cmd == "basic"){
-        looper = 1;
+    if (cmd == "basic"){            // Basic display, just the lights
+        stopAll();                  // Function to stop all tasks
+        resetter("partial");        // Function to reset all global variables
+        looper = 1;                 // Determines what sequence to loop
     }
-    if (cmd == "intro"){
-        cmdMillis = millis();
-        relay("on");
-        pinResetFast(audioPin01);
-        looper = 2;        
+    if (cmd == "intro"){            // Basic display, but with the Star Wars theme playing
+        stopAll();                  // Function to stop all tasks
+        resetter("partial");        // Function to reset all global variables
+        cmdMillis = millis();       // To get a time for when this started
+        relay("on");                // We will need sound, so engage the amp relay
+        pinResetFast(audioPin01);   // Start playing the correct sound
+        looper = 2;                 // Determines what sequence to loop        
     }
-    if (cmd == "medley"){
-        cmdMillis = millis();
-        relay("on");
-        pinResetFast(audioPin02);
-        looper = 3;        
+    if (cmd == "medley"){           // Basic display but with a medley playing
+        stopAll();                  // Function to stop all tasks
+        resetter("partial");        // Function to reset all global variables
+        cmdMillis = millis();       // To get a time for when this started
+        relay("on");                // We will need sound, so engage the amp relay
+        pinResetFast(audioPin02);   // Start playing the correct sound
+        looper = 3;                 // Determines what sequence to loop        
     }
-    if (cmd == "takeOff"){
-        takeOffStart = millis(); // To get a time for when this started
-        looper = 4;
+    if (cmd == "takeOff"){          // Lights animated to the sound of the MF taking off
+        stopAll();                  // Function to stop all tasks
+        resetter("partial");        // Function to reset all global variables
+        takeOffStart = millis();    // To get a time for when this started
+        looper = 4;                 // Determines what sequence to loop
+    }
+    if(cmd == "reset"){             // Need a quick way to kill the thing..
+        stopAll();                  // Function to stop all tasks
+        resetter("complete");       // Function to reset all global variables
     }
     
-    // Admin's "special" Commands..shh..secret!
-    if(cmd == "reset"){ // Need a quick way to kill the thing when working at night if it suddenly plays at high volume.. 
-        stopAll();
-    }
-    if(cmd == "resetAudio"){ // Need a quick way to kill the thing when working at night if it suddenly plays at high volume.. 
+    
+    // Admin's "special" Commands..shh..secret! Self explanatory?
+    if(cmd == "resetAudio"){ 
         resetAudio();        
     }
-    if(cmd == "resetRelay"){ // Need a quick way to kill the thing when working at night if it suddenly plays at high volume.. 
-        relay("off");       
-    }
-    if(cmd == "resetLights"){ // Need a quick way to kill the thing when working at night if it suddenly plays at high volume.. 
+    if(cmd == "resetLights"){  
         lightsOff();        
     }
     if(cmd == "relayOn"){
@@ -156,32 +164,32 @@ int falcon(String cmd) {  // This function allows me to call commands as if they
     if(cmd == "down"){
         volumeD(5);
     }
-    return 1;   // Returns 1 so we know all went well..cloud stuff 
+    return 1;                   // Returns 1 so we know all went well..cloud stuff 
 }
 
 
 
-void loop(){                    // The loop that runs all the time.. looper = 0 reserved
-    connect();
+void loop(){                    // The loop that runs all the time.. looper = 0 reserved for nothing :) 
+    connect();                  // Since we're using the SEMI_AUTOMATIC mode we need to manually connect to the wireless network and the cloud
     
-    if (boot == 0){                                             // Do these things only once, at boot
-        Particle.publish("Admin:" ,"Booted or reset, ready for duty");
-        volumeD(25); // TEMPORARY, working at night config
-        boot = 1;
+    if (boot == 0){                                                     // Do these things only once, at boot (..oh and every time we loop around to the idle sequence)
+        Particle.publish("Admin:" ,"Booted or reset, ready for duty");  // Just some text to publish, might refine this some day.. 
+        //volumeD(25);                                                  // TEMPORARY, working at night config            
+        boot = 1;                                                       // Setting this so we make sure we only excute this sequence once.. 
     }
     
-    button(); // Check the button on the base; short press = switch program, long press = turn off sound/lights
+    button();               // Check the button on the base; short press = switch program, long press = turn off sound/lights
     
-    if (looper == 1){ //static display
-        staticDisplay();
+    if (looper == 1){       //static display
+        staticDisplay();    
     }
-    if (looper == 2){ // intro
+    if (looper == 2){       // intro
         soundDisplay("intro");
     }
-    if (looper == 3){ // medley
+    if (looper == 3){       // medley
         soundDisplay("medley");
     }
-    if (looper == 4){ // take off
+    if (looper == 4){       // take off
         takeOff();
     }
 }                            // WIP
@@ -195,73 +203,103 @@ void playSound(String audioCmd){
     if (audioCmd == "intro") { 
         if (currentMillis - cmdMillis >= 386000) { // 386000 Let audio play until finished, then shut down the relay..
             stopAll();
+            resetter("complete");
         }
     }    
     if (audioCmd == "medley") {
         if (currentMillis - cmdMillis >= 527000) { // 527000 Let audio play until finished, then shut down the relay..
             stopAll();
+            resetter("complete");
         }
     }
 }        // Complete
 
 void stopAll(){
-    lightsOff();                                    // Kill lights
-    relay("off");                                   // Turn off power to the amplifier
-    resetAudio();                                   // Reset the audio card to kill any playing audio..
-    pinFixer("all");                                // Shut down the output pin on ctrlr towrards audiofx..not sure this works
+    lightsOff();                    // Kill lights
+    relay("off");                   // Turn off power to the amplifier
+    resetAudio();                   // Reset the audio card to kill any playing audio..
+    pinFixer("all");                // Shut down the output pin on ctrlr towrards audiofx..not sure this works
+}
 
-    // Variables to reset 
-    looper = 0;
-    cmd = "0";
-    boot = 0;
-    fadeAmount = 1;
-    brightnessEven = 25; 
-    brightnessOdd = 25;
-    blink = 1;
-    bob = 0;
-    fadeAmountOdd = -1;
-    fadeAmountEven = 1;
-    cmdMillis = 0;
-    
-    volumeD(25);                                    // TEMPORARY, working at night config
-}                         // Complete
+void resetter(String resetCmd){
+    if (resetCmd == "partial"){
+        fadeAmount = 1;
+        brightnessEven = 25; 
+        brightnessOdd = 25;
+        blink = 1;
+        maxValueReached = 0;
+        fadeAmountOdd = -1;
+        fadeAmountEven = 1;
+        cmdMillis = 0;
+    }
+    if (resetCmd == "complete"){
+        fadeAmount = 1;
+        brightnessEven = 25; 
+        brightnessOdd = 25;
+        blink = 1;
+        maxValueReached = 0;
+        fadeAmountOdd = -1;
+        fadeAmountEven = 1;
+        cmdMillis = 0;
+        looper = 0;                 // The variable that makes this reset the "complete" version. 
+    }
+}
 
-void button(){                                                  // Button press= LOW, LED lit = HIGH
-    unsigned long currentMillis = millis();
-    
-    currentButtonState = digitalRead(buttonPress);              // Check if button is pressed at this moment
-    
-    if (currentButtonState == LOW) {                            // If the button IS pressed..then
-        if (currentButtonState == previousButtonState){         // Check if it was pressed last time we checked..if it was, then
-            if (currentMillis - pressedMillis >= interval) {    // Check if it has been pressed for the duration of "interval", if yes, then
-                longPress = 1;                                  // Button has been pressed >= interval, this ensures we drop out gracefully of the button function
-                falcon("reset");                                // Why not use the cloud exposed function for something good, this resets everything back to nothing.
-            }
-        } else {                                                // If interval hasn't been reached then
-            pressedMillis = millis();                           // When did we press the button..
-            previousButtonState = currentButtonState;           // Record the button state..
-            digitalWrite(buttonLED, HIGH);                      // Light the LED on the button :)
-        }
-    } else if (currentButtonState == HIGH){                     // The most common state, button NOT pressed..
-        if (previousButtonState == LOW) {                       // However, what if the button was pressed on the last run through? This checks to see if it has been released
-            if (longPress == 1){                                // and what if we pressed it a really really really long time?
-                longPress = 0;                                  // Well..we're not pressing it for a really really really long time any more.. 
-            }else{
-                falcon("reset");                                // because if that is the case then we need to stop what we're doing and see what
-                looper = looper + 1;                            // increase the looper variable to move to the next program in line
-                
-                if (looper == 1) falcon("basic");               // Commands to be executed..
+void button() {
+  currentButtonState = digitalRead(buttonPress);
+
+  // if the button state changes to pressed, remember the start time 
+  if (currentButtonState == LOW && previousButtonState == HIGH && (millis() - firstTime) > 200) {
+    firstTime = millis();
+  }
+
+  millis_held = (millis() - firstTime);
+  secs_held = millis_held / 1000;
+
+  // This if statement is a basic debouncing tool, the button must be pushed for at least
+  // 100 milliseconds in a row for it to be considered as a push.
+  if (millis_held > 50) {
+
+        // check if the button was released since we last checked
+        if (currentButtonState == HIGH && previousButtonState == LOW) {
+            
+            // Button pressed for less than 2 seconds, go to the next thing on the list
+            if (secs_held <= 2) {
+                Particle.publish("Looper before:" ,looper);
+                looper = looper + 1; 
+                if (looper == 1) falcon("basic");
                 if (looper == 2) falcon("intro");
                 if (looper == 3) falcon("medley");
                 if (looper == 4) falcon("takeOff");
-                
-                if (looper == 5) looper = 0;                    // and make sure we loop looper around when we have nothing more to show off :)
+                if (looper == 5) {
+                    stopAll();
+                    resetter("complete");
+                }
+                buttonLight();
             }
-            previousButtonState = currentButtonState;           // Record the button state for the next run around.. 
+            
+            // Button held for more than 2 seconds, reset all 
+            if (secs_held > 2) {
+                ledblink(3,200,buttonLED);
+                stopAll();
+                resetter("complete");
+            }
         }
-        digitalWrite(buttonLED, LOW);                           // Turn of the button LED
     }
-}                          // Complete
+    digitalWrite(buttonLED, LOW); 
+    previousButtonState = currentButtonState;
+    prev_secs_held = secs_held;
+}
+
+void buttonLight(){
+    unsigned long currentMillis = millis();
+    if (currentMillis - previousButtonMillis >= buttonInterval) {
+        previousButtonMillis = currentMillis;
+        digitalWrite(buttonLED, HIGH);
+    }else{
+        digitalWrite(buttonLED, LOW);
+    }
+}
 
 void staticDisplay(){
     unsigned long currentMillis = millis();
@@ -316,7 +354,7 @@ void staticDisplay(){
         pixels.setPixelColor(9, brightnessOdd, brightnessOdd, brightnessOdd);    
     } 
     pixels.show();
-}                   // Complete
+}
 
 void takeOff (){  
     
@@ -331,12 +369,10 @@ void takeOff (){
     unsigned long engineBright = 20000;
     unsigned long normalEngine = 21900;
     unsigned long end = 125000;
+    unsigned long currentMillis = millis(); // Current time
+    unsigned long millisSinceStart = currentMillis - takeOffStart; // How long has this sequence been running
     
     playSound("takeOff"); // Start the sound
-    
-    unsigned long currentMillis = millis(); // Current time
-    
-    unsigned long millisSinceStart = currentMillis - takeOffStart; // How long has this sequence been running
     
     if ((millisSinceStart >= 0) && (millisSinceStart < staticCocpit)) {
         pixels.setPixelColor(1, 30, 0, 0);
@@ -526,7 +562,7 @@ void takeOff (){
                 
                 if (brightness == maxBrightness+100) {
                     fadeAmount = -fadeAmount;
-                    bob = 1;
+                    maxValueReached = 1;
                 }
                 
                 // change the brightness for next time through the loop:
@@ -536,7 +572,7 @@ void takeOff (){
                 for (int i=4; i <= 10; i++){
                     pixels.setPixelColor(i, brightness, brightness, brightness); // Even numbers
                 }
-                if (bob == 1){
+                if (maxValueReached == 1){
                     if (brightness == maxEngineBrightness-5) {
                         blink = 0;
                         fadeAmount = 1;
@@ -579,9 +615,10 @@ void takeOff (){
     // Done, stop!
     if (millisSinceStart >= end) { 
         stopAll();
+        resetter("complete");
     }
     pixels.show();
-}                        // WIP
+}
 
 void soundDisplay(String program){
     staticDisplay();
@@ -596,7 +633,7 @@ void volumeU(int v){                    // Volume up function
         pinSetFast(volumeUp);
         delay(20);
     }
-}                    // Complete
+}
 
 void volumeD(int v){                    // Volume down function
     for(int y=v; y>0; y--) {            // Basically this sets the volume down pin low for 20 ms, then sets it high again
@@ -605,12 +642,12 @@ void volumeD(int v){                    // Volume down function
         pinSetFast(volumeDown);
         delay(20);
     }
-}                    // Complete
+}
 
 void lightsOff(){                               // Function to clear the lights..having issues with this as well, and that indicates issues with the library..
     pixels.clear();                           // Initialize pins for output
     pixels.show();                        // Turn all LEDs off ASAP, this does not allways work for some reason
-}                       // Complete
+}
 
 void relay(String relayCmd){                 // The relay that controls the power to the amp takes a string command, on or off
     if (relayCmd == "off"){                   // Reason for this is to remove static hum when displaying only lights
@@ -618,13 +655,13 @@ void relay(String relayCmd){                 // The relay that controls the powe
     }else if(relayCmd == "on"){
         pinSetFast(relPin);
     }
-}            // Complete
+}
 
 void resetAudio(){                  // Trips the rst pin on the audio fx board. Used to stop playing of files mid-flight
     pinResetFast(audioRst);
     delay(wait);
     pinSetFast(audioRst);
-}                      // Complete
+}
 
 void pinFixer(String audioCmd){                         // Remember to add the pins here that are used for audio..
     if (audioCmd == "takeOff") pinSetFast(audioPin00);  // Selectively putting pins LOW
@@ -635,10 +672,20 @@ void pinFixer(String audioCmd){                         // Remember to add the p
         pinSetFast(audioPin01);
         pinSetFast(audioPin02);
     }
-}           // Complete
+}
+
+// Just a simple helper function to blink an led in various patterns
+void ledblink(int times, int lengthms, int pinnum){
+  for (int x=0; x<times;x++) {
+    digitalWrite(pinnum, HIGH);
+    delay (lengthms);
+    digitalWrite(pinnum, LOW);
+    delay(lengthms);
+  }
+}
 
 void connect() {
   if (Particle.connected() == false) {  // If not connected, then.. 
     Particle.connect();                 // connect!
   }
-}                        // Complete
+}
